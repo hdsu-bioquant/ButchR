@@ -19,6 +19,7 @@
 #' FrobError_sd, sumSilWidth, meanSilWidth, copheneticCoeff, and meanAmariDist.
 #' Default value: c("FrobError", "FrobError_cv", "sumSilWidth", "meanSilWidth",
 #' "copheneticCoeff", "meanAmariDist").
+#' @param help add captions and suffixes to the metrics to help graph reading
 #'
 #' @return a ggplot figure with the values for the selected factorization metrics
 #' @import ggplot2 dplyr
@@ -32,12 +33,26 @@
 #' method = "NMF",
 #' n_initializations = 2)
 #' gg_plotKStats(nmf_exp)
+#' gg_plotKStats(nmf_exp, help = TRUE)
 #' }
 gg_plotKStats <- function(nmf_exp,
-                          plot_vars = c("FrobError", "FrobError_cv",
-                                        "sumSilWidth", "meanSilWidth",
-                                        "copheneticCoeff", "meanAmariDist")) {
+                          plot_vars = c("FrobError", "FrobError_cv", "meanAmariDist",
+                                        "sumSilWidth", "meanSilWidth", "copheneticCoeff"),
+                          help = FALSE) {
 
+  all_metrics <- c(
+    ## Those metrics should be minimized
+    "FrobError (-)" = "FrobError",
+    "FrobError_min (-)" = "FrobError_min",
+    "FrobError_mean (-)" = "FrobError_mean",
+    "FrobError_cv (-)" = "FrobError_cv",
+    "FrobError_sd (-)" = "FrobError_sd",
+    "meanAmariDist (-)" = "meanAmariDist",
+    ## Those metrics should be maximized
+    "sumSilWidth (+)" = "sumSilWidth",
+    "meanSilWidth (+)" = "meanSilWidth",
+    "copheneticCoeff (+)" = "copheneticCoeff"
+  )
   if (!class(nmf_exp) %in% c("ButchR_NMF", "ButchR_joinNMF", "ButchR_integrativeNMF")) {
     stop("\ngg_plotKStats is only supported for objects of class: \n",
          "ButchR_NMF, ButchR_joinNMF, or ButchR_integrativeNMF\n")
@@ -45,12 +60,10 @@ gg_plotKStats <- function(nmf_exp,
   if (!is.character(plot_vars)) {
     stop("\nplot_vars: Expecting a character vector with IDs of the
          factorization metrics to visualize, e.g.:\n",
-         "c('FrobError', 'FrobError_cv', 'sumSilWidth', 'meanSilWidth',
-         'copheneticCoeff', 'meanAmariDist')\n")
+         "c('FrobError', 'FrobError_cv', 'meanAmariDist', 'sumSilWidth', 'meanSilWidth',
+         'copheneticCoeff')\n")
   }
-  if (!all(plot_vars %in% c("FrobError", "FrobError_min", "FrobError_mean",
-                           "FrobError_cv", "FrobError_sd", "sumSilWidth",
-                           "meanSilWidth", "copheneticCoeff", "meanAmariDist"))) {
+  if (!all(plot_vars %in% all_metrics)) {
     stop("\nPossible factorization metrics are: FrobError, FrobError_min,
     FrobError_mean, FrobError_cv, FrobError_sd, sumSilWidth, meanSilWidth,
     copheneticCoeff, and meanAmariDist.\n")
@@ -68,14 +81,23 @@ gg_plotKStats <- function(nmf_exp,
   metrics_df <- nmf_exp@OptKStats[,-1] %>%
     tidyr::pivot_longer(names_to = "Metric", values_to = "Stat", -.data$k)
   # Plot and highlight optK
-  dplyr::bind_rows(frob_df, metrics_df) %>%
+  plot_data <- dplyr::bind_rows(frob_df, metrics_df) %>%
     dplyr::filter(.data$Metric %in% plot_vars) %>%
-    dplyr::mutate(Metric = factor(.data$Metric, levels = unique(.data$Metric))) %>%
+    dplyr::mutate(Metric = factor(.data$Metric, levels = all_metrics))
+  if (help) {
+    plot_data <- plot_data %>% dplyr::mutate(Metric = factor(.data$Metric, levels = all_metrics,
+                                                             labels = names(all_metrics)))
+  }
+  p <- plot_data %>%
     ggplot(aes(x = .data$k, y = .data$Stat)) +
     geom_vline(xintercept = nmf_exp@OptK, color = "firebrick") +
     geom_point() +
-    facet_wrap(.~Metric, scales = "free") +
+    facet_wrap(.~Metric, scales = "free", drop = TRUE) +
     theme_bw()
+  if (help) {
+    p <- p + labs(caption = "Metrics suffixed with (-) should be minimized, those suffixed with (+) should be maximized")
+  }
+  p
 }
 
 
